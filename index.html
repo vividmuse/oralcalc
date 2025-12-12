@@ -48,15 +48,8 @@ var _hmt = _hmt || [];
                                 <div class="form-group">
                                     <label class="col-sm-2 control-label">快速设置：</label>
                                     <div class="input-group col-sm-8">
-                                        <select name="level" class="form-control" disabled>
-                                            <option value="">【快捷选题型择（暂未开放）】</option>
-                                            <option value="20">20 以内整数加减法</option>
-                                            <option value="100n">100 以内加减法不进/借位</option>
-                                            <option value="100+1">100 以内进位加法(1 位数)</option>
-                                            <option value="100+2">100 以内进位加法(2 位数)</option>
-                                            <option value="100-1">100 以内借位减法(1 位数)</option>
-                                            <option value="100-2">100 以内借位减法(2 位数)</option>
-                                            <option value="100+-">100 以内连加连减</option>
+                                        <select name="level" class="form-control" v-model="level" @change="applyQuickPreset(level)">
+                                            <option v-for="p in quickPresets" :key="p.value" :value="p.value">{{p.label}}</option>
                                         </select>
                                     </div>
                                 </div>
@@ -253,6 +246,14 @@ var _hmt = _hmt || [];
                                             </div>
                                         </div>
                                         <div class="form-group">
+                                            <label class="col-sm-3 control-label"></label>
+                                            <div class="input-group col-sm-4">
+                                                <div class="checkbox form-control">
+                                                    <label><input type="checkbox" v-model="tensOnly.add" /> 仅整十数</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
                                             <label class="col-sm-3 control-label">得数范围：</label>
                                             <div class="input-group col-sm-4">
                                                 <input type="number" class="form-control" v-model="result_add.min"
@@ -280,6 +281,14 @@ var _hmt = _hmt || [];
                                                 <input type="number" class="form-control" v-model="rg.min" title="最小值" />
                                                 <div class="input-group-addon">-</div>
                                                 <input type="number" class="form-control" v-model="rg.max" title="最大值" />
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="col-sm-3 control-label"></label>
+                                            <div class="input-group col-sm-4">
+                                                <div class="checkbox form-control">
+                                                    <label><input type="checkbox" v-model="tensOnly.sub" /> 仅整十数</label>
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="form-group">
@@ -313,6 +322,14 @@ var _hmt = _hmt || [];
                                             </div>
                                         </div>
                                         <div class="form-group">
+                                            <label class="col-sm-3 control-label"></label>
+                                            <div class="input-group col-sm-4">
+                                                <div class="checkbox form-control">
+                                                    <label><input type="checkbox" v-model="tensOnly.mul" /> 仅整十数</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
                                             <label class="col-sm-3 control-label">得数范围：</label>
                                             <div class="input-group col-sm-4">
                                                 <input type="number" class="form-control" v-model="result_mul.min"
@@ -330,6 +347,14 @@ var _hmt = _hmt || [];
                                                 <input type="number" class="form-control" v-model="rg.min" title="最小值" />
                                                 <div class="input-group-addon">-</div>
                                                 <input type="number" class="form-control" v-model="rg.max" title="最大值" />
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="col-sm-3 control-label"></label>
+                                            <div class="input-group col-sm-4">
+                                                <div class="checkbox form-control">
+                                                    <label><input type="checkbox" v-model="tensOnly.div" /> 仅整十数</label>
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="form-group">
@@ -426,6 +451,84 @@ var _hmt = _hmt || [];
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label class=""></label>
+                                            <div class="input-group">
+                                                <div class="checkbox">
+                                                    <label>
+                                                        <input type="checkbox" v-model="uniquePerPage" /> 同页不重复
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row" style="margin-top:10px;">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="">试卷标题：</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="paperTitle" placeholder="自动根据设置生成的标题" />
+                                                <div class="input-group-addon">
+                                                    <label class="checkbox" style="margin:0;">
+                                                        <input type="checkbox" v-model="autoTitle" /> 自动更新
+                                                    </label>
+                                                </div>
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default" @click="refreshTitleFromSettings">根据设置生成</button>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="">数字类型：</label>
+                                            <div class="form-control" style="height:auto;">
+                                                <label class="checkbox-inline">
+                                                    <input type="checkbox" v-model="numberFormat.decimal1"> 一位小数
+                                                </label>
+                                                <label class="checkbox-inline">
+                                                    <input type="checkbox" v-model="numberFormat.decimal2"> 两位小数
+                                                </label>
+                                                <label class="checkbox-inline">
+                                                    <input type="checkbox" v-model="numberFormat.fractionProper"> 真分数
+                                                </label>
+                                                <label class="checkbox-inline">
+                                                    <input type="checkbox" v-model="numberFormat.fractionImproper"> 假分数
+                                                </label>
+                                                <label class="checkbox-inline">
+                                                    <input type="checkbox" v-model="numberFormat.fractionMixed"> 带分数
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row" style="margin-top:8px;">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            <label class="">组合题型：</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" v-model="mixLabel" placeholder="备注/标题，不填则使用当前设置标题" />
+                                                <div class="input-group-addon">数量</div>
+                                                <input type="number" class="form-control" v-model="mixCount" />
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default" @click="addMixConfig">把当前设置加入组合</button>
+                                                </span>
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default" @click="clearMixConfigs" :disabled="!mixConfigs.length">清空组合</button>
+                                                </span>
+                                            </div>
+                                            <div v-if="mixConfigs.length" class="help-block" style="margin-top:6px;">
+                                                <span v-for="cfg in mixConfigs" class="label label-info" style="display:inline-block;margin-right:6px;">
+                                                    {{cfg.label}} × {{cfg.count}}
+                                                    <a href="javascript:void(0)" @click="removeMixConfig(cfg.id)" style="color:white;padding-left:4px;">×</a>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="row" style="height:16px"></div>
@@ -505,7 +608,7 @@ var _hmt = _hmt || [];
                 <tr>
                     <th :colspan="cols" style="text-align:center;">
                         <div class="print-repeat" contenteditable="true">
-                            <h3>口算（100以内加减法混合运算）</h3>
+                            <h3>{{paperTitle || '口算（100以内加减法混合运算）'}}</h3>
                             姓名：__________ 日期：____月____日 时间：________ 对题：____道<br /><br />
                         </div>
                     </th>

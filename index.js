@@ -55,11 +55,24 @@ function intersectionRange(range1, range2) {
  * @param array[int] geinarr 随机出的数值个位数必须在 geinarr 数组中
  * @param array[int] notinarr 随机出的数值不可包含在 notinarr 数组中
  * @param array[int] inarr 只随机一个数组中的数值
+ * @param object opts 附加选项: {tensOnly: true} 仅生成整十数
  * @returns {number}
  */
-function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
+function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr, opts) {
 	Min = parseInt(Min);
 	Max = parseInt(Max);
+	opts = opts || {};
+	var tensOnly = !!opts.tensOnly;
+
+	if (tensOnly) {
+		Min = Math.ceil(Min / 10) * 10;
+		Max = Math.floor(Max / 10) * 10;
+		if (Max < Min) {
+			setError("    错误：整十数范围无效 min =", Min, ", max =", Max);
+			Max = Min;
+		}
+	}
+
 	if( Max < Min ) {
 		setError("    错误：无效的范围 min =", Min, ", max =", Max);
 		haveError = true;
@@ -75,6 +88,19 @@ function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
 	geinarr = ( 'object' == typeof(geinarr) ) ? geinarr.concat() : [];
 	notinarr = ( 'object' == typeof(notinarr) ) ? notinarr.concat() : [];
 	inarr = ( 'object' == typeof(inarr) ) ? inarr.concat() : [];
+
+	if (tensOnly) {
+		// 整十时个位必为 0，调整个位限制条件
+		if (geinarr.length && geinarr.indexOf(0) < 0) {
+			setWarning('    警告：整十数模式下个位限制与 0 冲突，已忽略个位限定。');
+			geinarr = [];
+		}
+		var filtered = [];
+		for (var ii = 0; ii < inarr.length; ii++) {
+			if (inarr[ii] % 10 == 0) filtered.push(inarr[ii]);
+		}
+		if (inarr.length > 0) inarr = filtered;
+	}
 
 	// 必须是指定列表中的数值，这种情况应该从 inarr 中寻找满足条件的数值：
 	if ( inarr.length > 0) {
@@ -97,10 +123,13 @@ function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
 		num = right_nums[num];
 	} else {
 		// 范围内整数可能的个位列表(只要连续10个数以上，个位应该是0-9全的)
-		var ges = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+		var ges = tensOnly ? [0] : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 		if( Max - Min + 1 < 10 ) { // 只有范围不足 10 个整数时，才需要得到个位列表
 			for(ges = [], i = Min; i <= Max; i ++) {
 				ges.push(i % 10);
+			}
+			if (tensOnly && ges.indexOf(0) < 0) {
+				ges = [0];
 			}
 		}
 		for(i = 0; i < genotinarr.length; i ++) { // 移除必须不含的个位
@@ -118,6 +147,7 @@ function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
 			// 由于大多数能随机成功，先随机几次试试，万一命中的话，就不需要再次尝试，以提高效率：
 			for(i = 0; i < 10; i ++) {
 				num = Min + Math.round(Math.random() * (Max - Min));
+				if( tensOnly ) num = Math.round(num / 10) * 10;
 				if ( ! ( ges.indexOf(num % 10) < 0 || (notinarr.length > 0 && notinarr.indexOf(num) >= 0 ) ) ) {
 					break;
 				}
@@ -127,6 +157,7 @@ function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
 				var tmparr = [];
 				// 找到所有可能的有效值列表
 				for(num = Min; num <= Max; num ++) {
+					if( tensOnly && num % 10 != 0 ) continue;
 					if ( ges.indexOf(num % 10) < 0 || (notinarr.length > 0 && notinarr.indexOf(num) >= 0 ) ) {
 						continue; // 不符合
 					}
@@ -134,6 +165,7 @@ function randomInt(Min, Max, genotinarr, geinarr, notinarr, inarr) {
 				}
 				if( tmparr.length <= 0 ) {
 					num = Min + Math.round(Math.random() * (Max - Min));
+					if( tensOnly ) num = Math.round(num / 10) * 10;
 					setError('    错误：未能生成范围('+Min+'~'+Max+')内的数值！',
 						'个位不含('+ genotinarr.join(',')+')', '个位必含('+geinarr.join(',')+')', 
 						'不含('+notinarr.join(',')+')', '必含('+inarr.join(',')+')');
@@ -200,6 +232,30 @@ var app = new Vue({
 		whichcond: '',
 		exact_parentheses: false,
 		parentheses: {autofix: true, enabled: false, min: 0, max: 0}, // 是否生成带括号的题
+		numberFormat: {
+			decimal1: false,
+			decimal2: false,
+			fractionProper: false,
+			fractionImproper: false,
+			fractionMixed: false
+		},
+		tensOnly: { add: false, sub: false, mul: false, div: false },
+		paperTitle: '',
+		autoTitle: true,
+		uniquePerPage: false,
+		mixConfigs: [],
+		mixLabel: '',
+		mixCount: 20,
+		quickPresets: [
+			{value: '', label: '【快捷选题型】'},
+			{value: '20', label: '20 以内整数加减法(无进/借位)'},
+			{value: '100n', label: '100 以内加减法(无进/借位)'},
+			{value: '100+1', label: '100 以内进位加法(加一位数)'},
+			{value: '100+2', label: '100 以内进位加法(加两位数)'},
+			{value: '100-1', label: '100 以内借位减法(减一位数)'},
+			{value: '100-2', label: '100 以内借位减法(减两位数)'},
+			{value: '100+-', label: '100 以内连加连减(三项)'}
+		],
 
 		itemcount: 0,
 
@@ -250,6 +306,7 @@ var app = new Vue({
 		this.itemcount = 3;
 		this.is_login = this.curr_user() ? true : false;
 		this.myCounter();
+		this.refreshTitleFromSettings();
 	},
 	watch: {
 		count: function (val, oldval) {
@@ -423,11 +480,15 @@ var app = new Vue({
 			// 5. 强制进、借位不对乘除法起作用
 			// 6. 除法必须都能整除
 			var op = this.op(), t, r, res;
+			var ropts = this.randomOpts(op);
+			var rnd = function (min, max, genotinarr, geinarr, notinarr, inarr) {
+				return randomInt(min, max, genotinarr, geinarr, notinarr, inarr, ropts);
+			};
 
 			var range = ({'+': this.range_add, '-': this.range_sub, '*': this.range_mul, '/': this.range_div})[op];
 			var result = {'+': this.result_add, '-': this.result_sub, '*': this.result_mul, '/': this.result_div}[op];
 
-			var w = '' === this.whichcond ? randomInt(0, this.itemcount - 1) : this.whichcond - 0; // 已知得数，随机求某一个条件
+			var w = '' === this.whichcond ? rnd(0, this.itemcount - 1) : this.whichcond - 0; // 已知得数，随机求某一个条件
 			var min = range[0].min, max = range[0].max, limit = [], isexcept = false, isborrow = false, iscarry = false;
 
 			// @todo: 确保第一个数生成在有解范围内！比如被加数 91 无法保证 加数 >= 10，
@@ -495,7 +556,8 @@ var app = new Vue({
 					if (this.issub) {
 						setWarning('被加数最小值超出了得数允许的最大范围，将智能变更为减法！')
 						op = '-';
-						r = randomInt(min, max, limit);
+						ropts = this.randomOpts(op);
+						r = rnd(min, max, limit);
 					} else {
 						isexcept = true;
 						setError('错误：被加数最小值超出了得数允许的最大范围！')
@@ -503,7 +565,7 @@ var app = new Vue({
 				} else {
 					// 被加数不能超过结果允许的最大值
 					max = Math.min(max, result.max);
-					r = randomInt(min, max, limit);
+					r = rnd(min, max, limit);
 				}
 			}
 			else if ('-' == op) {
@@ -513,14 +575,15 @@ var app = new Vue({
 					if (this.isadd) {
 						setWarning('被减数最大值比得数允许的最小范围还要小，智能变更为加法！')
 						op = '+';
-						r = randomInt(min, max, limit);
+						ropts = this.randomOpts(op);
+						r = rnd(min, max, limit);
 					} else {
 						isexcept = true;
 						setError('错误：被减数最大值比得数允许的最小范围还要小！')
 					}
 				} else {
 					min = Math.max(min, result.min);
-					r = randomInt(min, max, limit);
+					r = rnd(min, max, limit);
 				}
 			}
 			else if ('*' == op) {
@@ -529,7 +592,8 @@ var app = new Vue({
 					if (this.issub) {
 						setWarning('被乘数最小值超出了得数允许的最大范围，将智能变更为减法！')
 						op = '-';
-						r = randomInt(min, max, limit);
+						ropts = this.randomOpts(op);
+						r = rnd(min, max, limit);
 					} else {
 						isexcept = true;
 						setError('错误：被乘数最小值超出了得数允许的最大范围！')
@@ -537,7 +601,7 @@ var app = new Vue({
 				} else {
 					// 被乘数不能超过结果允许的最大值
 					max = Math.min(max, result.max);
-					r = randomInt(min, max, limit);
+					r = rnd(min, max, limit);
 				}
 			}
 			else if ('/' == op) {
@@ -547,24 +611,26 @@ var app = new Vue({
 					if (this.ismul) {
 						setWarning('被除数最大值比得数允许的最小范围还要小，智能变更为乘法！')
 						op = '*';
-						r = randomInt(min, max); // 随机生成被乘数
+						ropts = this.randomOpts(op);
+						r = rnd(min, max); // 随机生成被乘数
 					} else {
 						isexcept = true;
 						setError('错误：被除数最大值比得数允许的最小范围还要小！')
 					}
 				} else {
-					r = randomInt(min, max, [], [], [0]); // 随机生成被除数
+					r = rnd(min, max, [], [], [0]); // 随机生成被除数
 				}
 			}
 
 			// 如果前面无法生成合法的数值，这里就直接按数值 1 限定范围生成随机数即可！因为无论如何它将是一个异常的值！
 			if ('undefined' == typeof(r)) {
-				r = randomInt(range[0].min, range[0].max, limit);
+				r = rnd(range[0].min, range[0].max, limit);
 			}
 
 			// 已知得数，求条件，且第一个数就是被求的条件? 则将该数使用空白代替！
 			var arr = [('2' == this.rule && 0 == w) ? this.blank(r) : r];
 			for (var i = 1; i < this.itemcount; i++, op = this.op()) {
+				ropts = this.randomOpts(op);
 
 				// 强制借/进位时，因为被加/减数的个位已经确定，所以加数的个位取值范围也确定了
 				var ge = r % 10, res_ge = [];
@@ -603,7 +669,7 @@ var app = new Vue({
 						max = min;
 						isexcept = true;
 					}
-					res = randomInt(min, max, undefined, res_ge);
+					res = rnd(min, max, undefined, res_ge);
 					t = res - r;
 				}
 
@@ -616,7 +682,7 @@ var app = new Vue({
 						min = max;
 						isexcept = true;
 					}
-					res = randomInt(min, max, undefined, res_ge);
+					res = rnd(min, max, undefined, res_ge);
 					t = r - res;
 				}
 
@@ -630,12 +696,12 @@ var app = new Vue({
 						isexcept = true;
 					}
 					// @todo 要考虑结果得能除得尽被乘数才行
-					res = randomInt(min, max, undefined, res_ge);
+					res = rnd(min, max, undefined, res_ge);
 					if (res % r != 0) {
 						setError(res, r, '除不尽');
 					} // 除不尽也没事，后面会重算！就是结果可能超出范围！
 					// 被乘数为 0? 乘数随机一个值！
-					if (r == 0) t = randomInt(range[i].min, range[i].max); // 0 乘以 任何数都等于 0
+					if (r == 0) t = rnd(range[i].min, range[i].max); // 0 乘以 任何数都等于 0
 					else t = Math.round(res / r);
 				}
 
@@ -651,12 +717,12 @@ var app = new Vue({
 					}
 					// 先随机生成【商】res，然后再重随机得到【除数】t，这样才能修正【被除数】r 以实现整除
 					// r / t = res 
-					res = (0 == r) ? 0 : randomInt(min, max, [], [], [0]); // 随机生成商
+					res = (0 == r) ? 0 : rnd(min, max, [], [], [0]); // 随机生成商
 					if (0 == res) { // 如果商为 0?
 						// 由于 0 除以 任何数都等于 0，所以这里随便生成一个范围内的除数，但除数不能为 0
-						t = randomInt(range[i].min, range[i].max, [], [], [0]);
+						t = rnd(range[i].min, range[i].max, [], [], [0]);
 					} else {// 如果商不为零？
-						t = randomInt(range[i].min, range[i].max, [], [], [0]); // 除数不零为 0
+						t = rnd(range[i].min, range[i].max, [], [], [0]); // 除数不零为 0
 					}
 
 					// @todo 在连式运算中 r 被修正可能会出问题，因为 r 是前面算式的结果 ...
@@ -666,7 +732,7 @@ var app = new Vue({
 					} else {
 						// 非除尽? 保持【被除数】r 和【商】res 不变，重新计算 t，但这样做有可能让 t 超出它的限制范围!(从而可能违背 10 以内的限制条件)
 						// 还是修正【被除数】 r 吧？ 并且需要随机模拟除不尽的情况
-						arr[arr.length - 1] = r = res * t + (res ? randomInt(0, t - 1) : 0);
+						arr[arr.length - 1] = r = res * t + (res ? rnd(0, t - 1) : 0);
 					}
 					console.log('r=', r, 't=', t, 'res=', res);
 				}
@@ -753,6 +819,7 @@ var app = new Vue({
 		calcItem2Value: function (items, item, item1_val) {
 			var dst_lor = 'lft' == item.lor ? 'rgt': 'lft';
 			var range, notinarr;
+			var ropts = this.randomOpts(item.operator);
 
 			if ('+' == item.operator) {
 				return item.result - item1_val;
@@ -768,7 +835,7 @@ var app = new Vue({
 				if (0 == item1_val) {
 					var range = this.getItemUserLORRange(item.operator, dst_lor);
 					var notinarr = [0];
-					return randomInt(range.min, range.max, [], [], notinarr);
+					return randomInt(range.min, range.max, [], [], notinarr, [], ropts);
 				} else {
 					return Math.round(item.result / item1_val); // 使用四舍五入以让偏差小一些 ...
 				}
@@ -784,7 +851,7 @@ var app = new Vue({
 					if (item1_val == 0 || item.result == 0) {
 						var range = this.getItemUserLORRange(item.operator, dst_lor);
 						var notinarr = [0];
-						return randomInt(range.min, range.max, [], [], notinarr);
+						return randomInt(range.min, range.max, [], [], notinarr, [], ropts);
 					}
 					return Math.round(item1_val / item.result); // 使用四舍五入以让偏差更小一些 ...
 				}
@@ -1054,6 +1121,7 @@ var app = new Vue({
 			var result_range = this.calcItemResultRange(items, item);
 			var result, min = result_range.min, max = result_range.max;
 			var genotinarr = [], notinarr = [], inarr = [];
+			var ropts = this.randomOpts(item.operator);
 			
 			// @todo 结果在某些情况下也要受到限制：
 			// 1. 如果下一层是除法，本层是加减法，则尽量将结果控制在除法运算项允许的范围内？需要综合分析各个范围并给出解决方案?
@@ -1113,7 +1181,7 @@ var app = new Vue({
 			// 顶层结果在此生成：
 			if ( 0 == item.index ) {
 				// 最外层结果 = 只要在最外层运算符规定的范围内就行
-				result = randomInt(min, max, genotinarr, [], notinarr, inarr);
+				result = randomInt(min, max, genotinarr, [], notinarr, inarr, ropts);
 			} 
 			// 非顶层要考虑本层和父层两个范围的合并问题：
 			else {
@@ -1164,6 +1232,7 @@ var app = new Vue({
 			var notinarr = range.notinarr || [];
 			var inarr = range.inarr || [];
 			var old_min = min, old_max = max;
+			var ropts = this.randomOpts(item.operator);
 
 			if ('+' == item.operator) {
 				// 限制：不管是被加数还是加数都不允许超过 item.result 的值
@@ -1295,7 +1364,7 @@ var app = new Vue({
 				}
 			}
 
-			return randomInt(min, max, genotinarr, geinarr, notinarr, inarr);
+			return randomInt(min, max, genotinarr, geinarr, notinarr, inarr, ropts);
 		},
 
 		randomLOR: function () {
@@ -1402,11 +1471,13 @@ var app = new Vue({
 		},
 
 		formulaToString: function(items) {
-			var str = '', head, tail, tmpstr, op;
+			var str = '', head, tail, tmpstr, op, leftVal, rightVal;
 			var w = '' === this.whichcond ? randomInt(0, this.itemcount - 1) : this.whichcond - 0; // 已知得数，随机求某一个条件
 			// 由内向外生成
 			for (var i = items.length - 1; i >= 0; i--) {
 				op = ChineseOP[items[i].operator];
+				leftVal = this.formatValue(items[i].lft, items[i], 'lft', items);
+				rightVal = this.formatValue(items[i].rgt, items[i], 'rgt', items);
 				// 最外层不加括号
 				head = 0 == i ? '' : '('; 
 				tail = 0 == i ? '' : ')';
@@ -1423,31 +1494,487 @@ var app = new Vue({
 					}
 				}
 				if (i == items.length - 1) {
-					if( '2' == this.rule && w == i + 1) tmpstr = items[i].lft + op + this.blank(items[i].rgt);
-					else if( '2' == this.rule && w == i + 0) tmpstr = this.blank(items[i].lft) + op + items[i].rgt;
-					else tmpstr = items[i].lft + op + items[i].rgt;
+					if( '2' == this.rule && w == i + 1) tmpstr = leftVal + op + this.blank(rightVal);
+					else if( '2' == this.rule && w == i + 0) tmpstr = this.blank(leftVal) + op + rightVal;
+					else tmpstr = leftVal + op + rightVal;
 					str = head + tmpstr + tail;
 				} else {
 					if ('lft' == items[i].lor) {
-						if( '2' == this.rule && w == i + 0) tmpstr = this.blank(items[i].rgt);
-						else tmpstr = items[i].rgt;
+						tmpstr = ('2' == this.rule && w == i + 0) ? this.blank(rightVal) : rightVal;
 						str = head + str + op + tmpstr + tail;
 					} else {
-						if( '2' == this.rule && w == i + 0) tmpstr = this.blank(items[i].lft);
-						else tmpstr = items[i].lft;
+						tmpstr = ('2' == this.rule && w == i + 0) ? this.blank(leftVal) : leftVal;
 						str = head + tmpstr + op + str + tail;
 					}
 				}
 			}
 			// 已知得数，求条件，且第一个数就是被求的条件? 则将该数使用空白代替！
-			str += '＝' + ('1' == this.rule ? this.blank(items[0].result) : items[0].result);
+			var resultVal = this.formatValue(items[0].result, items[0], 'result', items);
+			str += '＝' + ('1' == this.rule ? this.blank(resultVal) : resultVal);
 			if ('1' != this.rule && items[0].rem && items[0].rem > 0) {
 				str += "..." + items[0].rem;
 			}
 			return str;
 		},
 
-		doGen: function () {
+		formatValue: function (val, item, field, items) {
+			var format = (items && items.numberFormat) ? items.numberFormat : {type: 'integer'};
+			var meta = (item && item.formatted) ? item.formatted[field] : null;
+			if (meta) {
+				return this.stringifyFormatted(meta);
+			}
+			if ('fraction' == format.type && format.variant) {
+				return this.stringifyFormatted(this.fractionPartsFromValue(val, format.variant));
+			}
+			if ('decimal' == format.type) {
+				var places = isNaN(format.places) ? 1 : format.places;
+				return Number(val).toFixed(places);
+			}
+			return val;
+		},
+
+		stringifyFormatted: function (meta) {
+			if ('string' == typeof meta) return meta;
+			if (meta && meta.type == 'fraction') {
+				var whole = meta.whole || 0;
+				var numerator = meta.numerator || 0;
+				var denominator = meta.denominator || 1;
+				if (0 == numerator) {
+					return whole ? whole : 0;
+				}
+				var prefix = whole ? (whole + ' ') : '';
+				return prefix + numerator + '/' + denominator;
+			}
+			if (meta && typeof meta.text !== 'undefined') return meta.text;
+			if (meta && typeof meta.value !== 'undefined') return meta.value;
+			return meta;
+		},
+
+		activeNumberModes: function () {
+			var modes = [];
+			if (this.numberFormat.decimal1) modes.push('decimal1');
+			if (this.numberFormat.decimal2) modes.push('decimal2');
+			if (this.numberFormat.fractionProper) modes.push('fractionProper');
+			if (this.numberFormat.fractionImproper) modes.push('fractionImproper');
+			if (this.numberFormat.fractionMixed) modes.push('fractionMixed');
+			if (modes.length <= 0) modes.push('integer');
+			return modes;
+		},
+
+		pickNumberMode: function () {
+			var modes = this.activeNumberModes();
+			var idx = randomInt(0, modes.length - 1);
+			return modes[idx];
+		},
+
+		calculateValue: function (lft, rgt, op, roundPlaces) {
+			var val = 0;
+			switch (op) {
+				case '+': val = lft + rgt; break;
+				case '-': val = lft - rgt; break;
+				case '*': val = lft * rgt; break;
+				case '/': val = rgt == 0 ? 0 : lft / rgt; break;
+			}
+			if ('number' == typeof roundPlaces) {
+				var factor = Math.pow(10, roundPlaces);
+				val = Math.round(val * factor) / factor;
+			}
+			return val;
+		},
+
+		recomputeItems: function (items, opts) {
+			var roundPlaces = opts && opts.roundPlaces;
+			var fractionVariant = opts && opts.fractionVariant;
+			for (var i = items.length - 1; i >= 0; i--) {
+				var item = items[i];
+				item.rem = 0;
+				var result = this.calculateValue(item.lft, item.rgt, item.operator, roundPlaces);
+				if (fractionVariant) {
+					item.formatted = item.formatted || {};
+					item.formatted.result = this.fractionPartsFromValue(result, fractionVariant);
+				}
+				item.result = result;
+				if (i > 0) {
+					var parent = items[i - 1];
+					parent.formatted = parent.formatted || {};
+					if ('lft' == parent.lor) {
+						parent.lft = result;
+						if (fractionVariant) parent.formatted.lft = this.fractionPartsFromValue(result, fractionVariant);
+					} else {
+						parent.rgt = result;
+						if (fractionVariant) parent.formatted.rgt = this.fractionPartsFromValue(result, fractionVariant);
+					}
+				}
+			}
+			return items;
+		},
+
+		transformToDecimal: function (items, mode) {
+			var places = 'decimal2' == mode ? 2 : 1;
+			var scale = Math.pow(10, places);
+			var clone = JSON.parse(JSON.stringify(items));
+			for (var i = 0; i < clone.length; i++) {
+				clone[i].formatted = {};
+				clone[i].lft = clone[i].lft / scale;
+				clone[i].rgt = clone[i].rgt / scale;
+			}
+			this.recomputeItems(clone, {roundPlaces: places});
+			clone.numberFormat = {type: 'decimal', places: places};
+			return clone;
+		},
+
+		gcd: function (a, b) {
+			a = Math.abs(a);
+			b = Math.abs(b);
+			while (b) {
+				var t = b;
+				b = a % b;
+				a = t;
+			}
+			return a || 1;
+		},
+
+		approximateFraction: function (val, maxDenominator) {
+			var best = {numerator: Math.round(val), denominator: 1, diff: Math.abs(val - Math.round(val))};
+			maxDenominator = maxDenominator || 12;
+			for (var d = 2; d <= maxDenominator; d++) {
+				var n = Math.round(val * d);
+				var diff = Math.abs(val - n / d);
+				if (diff < best.diff) {
+					best = {numerator: n, denominator: d, diff: diff};
+				}
+			}
+			var g = this.gcd(best.numerator, best.denominator);
+			return {numerator: best.numerator / g, denominator: best.denominator / g};
+		},
+
+		fractionPartsFromValue: function (val, variant) {
+			if (!variant) variant = 'proper';
+			if (0 === val) {
+				return {type: 'fraction', variant: variant, whole: 0, numerator: 0, denominator: 1};
+			}
+			var sign = val < 0 ? -1 : 1;
+			var absVal = Math.abs(val);
+			var approx = this.approximateFraction(absVal, 12);
+			var numerator = approx.numerator * sign;
+			var denominator = approx.denominator;
+			var whole = 0;
+			if ('improper' == variant) {
+				return {type: 'fraction', variant: variant, whole: 0, numerator: numerator, denominator: denominator};
+			}
+			if (Math.abs(numerator) >= denominator) {
+				whole = sign * Math.floor(Math.abs(numerator) / denominator);
+				numerator = Math.abs(numerator) % denominator;
+				if ('proper' == variant) {
+					variant = 'mixed';
+				}
+			}
+			return {type: 'fraction', variant: variant, whole: whole, numerator: numerator, denominator: denominator};
+		},
+
+		buildFractionValue: function (base, variant) {
+			var denominator = randomInt(2, 9);
+			var numerator, whole = 0;
+			if ('improper' == variant) {
+				numerator = randomInt(denominator + 1, denominator * 2 - 1);
+			} else {
+				numerator = randomInt(1, denominator - 1);
+			}
+			if ('mixed' == variant) {
+				whole = Math.max(1, Math.min(9, Math.round(base / 10) || 1));
+			} else {
+				whole = 0;
+			}
+			var value = whole + numerator / denominator;
+			var parts = {type: 'fraction', variant: variant, whole: whole, numerator: numerator, denominator: denominator};
+			return {value: value, parts: parts};
+		},
+
+		transformToFraction: function (items, mode) {
+			var map = {fractionProper: 'proper', fractionImproper: 'improper', fractionMixed: 'mixed'};
+			var variant = map[mode] || 'proper';
+			var clone = JSON.parse(JSON.stringify(items));
+			for (var i = 0; i < clone.length; i++) {
+				clone[i].formatted = clone[i].formatted || {};
+				var lft = this.buildFractionValue(clone[i].lft, variant);
+				var rgt = this.buildFractionValue(clone[i].rgt, variant);
+				clone[i].lft = lft.value;
+				clone[i].rgt = rgt.value;
+				clone[i].formatted.lft = lft.parts;
+				clone[i].formatted.rgt = rgt.parts;
+			}
+			this.recomputeItems(clone, {fractionVariant: variant});
+			clone.numberFormat = {type: 'fraction', variant: variant};
+			return clone;
+		},
+
+		applyNumberFormat: function (items) {
+			var mode = this.pickNumberMode();
+			if ('decimal1' == mode || 'decimal2' == mode) {
+				return this.transformToDecimal(items, mode);
+			}
+			if (0 === mode.indexOf('fraction')) {
+				return this.transformToFraction(items, mode);
+			}
+			items.numberFormat = {type: 'integer'};
+			return items;
+		},
+
+		describeNumberFormat: function () {
+			var labels = [];
+			if (this.numberFormat.decimal1) labels.push('一位小数');
+			if (this.numberFormat.decimal2) labels.push('两位小数');
+			if (this.numberFormat.fractionProper) labels.push('真分数');
+			if (this.numberFormat.fractionImproper) labels.push('假分数');
+			if (this.numberFormat.fractionMixed) labels.push('带分数');
+			if (!labels.length) return '整数';
+			return labels.join('、');
+		},
+
+		describeTensOnly: function () {
+			if (this.tensOnly.add || this.tensOnly.sub || this.tensOnly.mul || this.tensOnly.div) {
+				return '整十数';
+			}
+			return '';
+		},
+
+		resetFormatFlags: function () {
+			this.numberFormat = {decimal1: false, decimal2: false, fractionProper: false, fractionImproper: false, fractionMixed: false};
+			this.tensOnly = {add: false, sub: false, mul: false, div: false};
+		},
+
+		applyQuickPreset: function (val) {
+			this.level = val;
+			if (!val) return;
+			this.resetFormatFlags();
+			this.mixConfigs = [];
+			this.uniquePerPage = false;
+			this.rule = '1';
+			this.whichcond = '';
+			this.itemcount = 2;
+			this.parentheses.enabled = false;
+			this.parentheses.min = 0;
+			this.parentheses.max = 0;
+			this.range_op = [];
+			this.strategy = 'random';
+			this.diff_operator_adjacent = false;
+			this.dissimilarity_operator_adjacent = true;
+			this.autoTitle = true;
+
+			var setAddRanges = function (min1, max1, min2, max2, resMin, resMax) {
+				return {
+					range_add: [{min: min1, max: max1}, {min: min2, max: max2}],
+					result_add: {min: resMin, max: resMax}
+				};
+			};
+			var setSubRanges = function (min1, max1, min2, max2, resMin, resMax) {
+				return {
+					range_sub: [{min: min1, max: max1}, {min: min2, max: max2}],
+					result_sub: {min: resMin, max: resMax}
+				};
+			};
+
+			if (val == '20') {
+				this.isadd = true; this.issub = true; this.ismul = false; this.isdiv = false;
+				var add = setAddRanges(0, 20, 0, 20, 0, 20);
+				var sub = setSubRanges(0, 20, 0, 20, 0, 20);
+				this.range_add = add.range_add; this.result_add = add.result_add;
+				this.range_sub = sub.range_sub; this.result_sub = sub.result_sub;
+				this.carry = 'no'; this.borrow = 'no';
+			} else if (val == '100n') {
+				this.isadd = true; this.issub = true; this.ismul = false; this.isdiv = false;
+				var add2 = setAddRanges(0, 100, 0, 100, 0, 100);
+				var sub2 = setSubRanges(0, 100, 0, 100, 0, 100);
+				this.range_add = add2.range_add; this.result_add = add2.result_add;
+				this.range_sub = sub2.range_sub; this.result_sub = sub2.result_sub;
+				this.carry = 'no'; this.borrow = 'no';
+			} else if (val == '100+1') {
+				this.isadd = true; this.issub = false; this.ismul = false; this.isdiv = false;
+				var add3 = setAddRanges(0, 100, 1, 9, 0, 200);
+				this.range_add = add3.range_add; this.result_add = add3.result_add;
+				this.carry = 'all'; this.borrow = 'random';
+			} else if (val == '100+2') {
+				this.isadd = true; this.issub = false; this.ismul = false; this.isdiv = false;
+				var add4 = setAddRanges(0, 100, 10, 99, 0, 200);
+				this.range_add = add4.range_add; this.result_add = add4.result_add;
+				this.carry = 'all'; this.borrow = 'random';
+			} else if (val == '100-1') {
+				this.isadd = false; this.issub = true; this.ismul = false; this.isdiv = false;
+				var sub3 = setSubRanges(0, 100, 1, 9, 0, 100);
+				this.range_sub = sub3.range_sub; this.result_sub = sub3.result_sub;
+				this.borrow = 'all'; this.carry = 'random';
+			} else if (val == '100-2') {
+				this.isadd = false; this.issub = true; this.ismul = false; this.isdiv = false;
+				var sub4 = setSubRanges(0, 100, 10, 99, 0, 100);
+				this.range_sub = sub4.range_sub; this.result_sub = sub4.result_sub;
+				this.borrow = 'all'; this.carry = 'random';
+			} else if (val == '100+-') {
+				this.isadd = true; this.issub = true; this.ismul = false; this.isdiv = false;
+				this.itemcount = 3;
+				this.parentheses.enabled = true;
+				var add5 = setAddRanges(0, 100, 0, 100, 0, 200);
+				var sub5 = setSubRanges(0, 100, 0, 100, 0, 100);
+				this.range_add = add5.range_add; this.result_add = add5.result_add;
+				this.range_sub = sub5.range_sub; this.result_sub = sub5.result_sub;
+				this.carry = 'random'; this.borrow = 'random';
+			}
+
+			if (this.autoTitle) {
+				this.refreshTitleFromSettings();
+			}
+		},
+
+		describeOps: function () {
+			var ops = [];
+			if (this.isadd) ops.push('加');
+			if (this.issub) ops.push('减');
+			if (this.ismul) ops.push('乘');
+			if (this.isdiv) ops.push('除');
+			if (!ops.length) return '';
+			if (ops.length == 4) return '加减乘除混合运算';
+			return ops.join('、') + (ops.length > 1 ? '混合运算' : '运算');
+		},
+
+		describeRange: function () {
+			var mins = [], maxs = [];
+			if (this.isadd) { mins.push(this.result_add.min); maxs.push(this.result_add.max); }
+			if (this.issub) { mins.push(this.result_sub.min); maxs.push(this.result_sub.max); }
+			if (this.ismul) { mins.push(this.result_mul.min); maxs.push(this.result_mul.max); }
+			if (this.isdiv) { mins.push(this.result_div.min); maxs.push(this.result_div.max); }
+			if (!mins.length) return '';
+			return Math.min.apply(null, mins) + '~' + Math.max.apply(null, maxs) + '范围';
+		},
+
+		buildTitleFromSettings: function () {
+			var parts = [];
+			var numLabel = this.describeNumberFormat();
+			if (numLabel) parts.push(numLabel);
+			var tensLabel = this.describeTensOnly();
+			if (tensLabel) parts.push(tensLabel);
+			var rangeLabel = this.describeRange();
+			if (rangeLabel) parts.push(rangeLabel);
+			var opLabel = this.describeOps();
+			if (opLabel) parts.push(opLabel);
+			if (!parts.length) return '口算';
+			return '口算（' + parts.join(' ') + '）';
+		},
+
+		refreshTitleFromSettings: function () {
+			this.paperTitle = this.buildTitleFromSettings();
+		},
+
+		isTensOnly: function (op) {
+			return { '+': this.tensOnly.add, '-': this.tensOnly.sub, '*': this.tensOnly.mul, '/': this.tensOnly.div }[op] || false;
+		},
+
+		randomOpts: function (op) {
+			return {tensOnly: this.isTensOnly(op)};
+		},
+
+		captureSettings: function () {
+			return JSON.parse(JSON.stringify({
+				isadd: this.isadd,
+				issub: this.issub,
+				ismul: this.ismul,
+				isdiv: this.isdiv,
+				range_add: this.range_add,
+				range_sub: this.range_sub,
+				range_mul: this.range_mul,
+				range_div: this.range_div,
+				result_add: this.result_add,
+				result_sub: this.result_sub,
+				result_mul: this.result_mul,
+				result_div: this.result_div,
+				carry: this.carry,
+				borrow: this.borrow,
+				nomod: this.nomod,
+				itemcount: this.itemcount,
+				count: this.count,
+				cols: this.cols,
+				pagerows: this.pagerows,
+				appendemptyrows: this.appendemptyrows,
+				rule: this.rule,
+				whichcond: this.whichcond,
+				range_op: this.range_op,
+				parentheses: this.parentheses,
+				diff_operator_adjacent: this.diff_operator_adjacent,
+				dissimilarity_operator_adjacent: this.dissimilarity_operator_adjacent,
+				numberFormat: this.numberFormat,
+				tensOnly: this.tensOnly,
+				autoTitle: this.autoTitle,
+				paperTitle: this.paperTitle
+			}));
+		},
+
+		applySettings: function (settings) {
+			if (!settings) return;
+			this.isadd = settings.isadd;
+			this.issub = settings.issub;
+			this.ismul = settings.ismul;
+			this.isdiv = settings.isdiv;
+			this.range_add = JSON.parse(JSON.stringify(settings.range_add));
+			this.range_sub = JSON.parse(JSON.stringify(settings.range_sub));
+			this.range_mul = JSON.parse(JSON.stringify(settings.range_mul));
+			this.range_div = JSON.parse(JSON.stringify(settings.range_div));
+			this.result_add = JSON.parse(JSON.stringify(settings.result_add));
+			this.result_sub = JSON.parse(JSON.stringify(settings.result_sub));
+			this.result_mul = JSON.parse(JSON.stringify(settings.result_mul));
+			this.result_div = JSON.parse(JSON.stringify(settings.result_div));
+			this.carry = settings.carry;
+			this.borrow = settings.borrow;
+			this.nomod = settings.nomod;
+			this.itemcount = settings.itemcount;
+			this.count = settings.count;
+			this.cols = settings.cols;
+			this.pagerows = settings.pagerows;
+			this.appendemptyrows = settings.appendemptyrows;
+			this.rule = settings.rule;
+			this.whichcond = settings.whichcond;
+			this.range_op = JSON.parse(JSON.stringify(settings.range_op));
+			this.parentheses = JSON.parse(JSON.stringify(settings.parentheses));
+			this.diff_operator_adjacent = settings.diff_operator_adjacent;
+			this.dissimilarity_operator_adjacent = settings.dissimilarity_operator_adjacent;
+			this.numberFormat = JSON.parse(JSON.stringify(settings.numberFormat));
+			this.tensOnly = JSON.parse(JSON.stringify(settings.tensOnly));
+			this.autoTitle = settings.autoTitle;
+			this.paperTitle = settings.paperTitle;
+		},
+
+		addMixConfig: function () {
+			if (this.mixCount < 1) this.mixCount = 1;
+			var snapshot = this.captureSettings();
+			var label = this.mixLabel || this.buildTitleFromSettings();
+			this.mixConfigs.push({
+				id: Date.now() + '_' + Math.round(Math.random() * 1000),
+				label: label,
+				count: this.mixCount,
+				settings: snapshot
+			});
+			this.mixLabel = '';
+		},
+
+		removeMixConfig: function (id) {
+			this.mixConfigs = this.mixConfigs.filter(function (c) { return c.id != id; });
+		},
+
+		clearMixConfigs: function () {
+			this.mixConfigs = [];
+		},
+
+		detectCarryBorrow: function (items) {
+			var carry = false, borrow = false;
+			for (var i = 0; i < items.length; i++) {
+				var it = items[i];
+				if ('+' == it.operator) {
+					if ((it.lft % 10) + (it.rgt % 10) >= 10) carry = true;
+				} else if ('-' == it.operator) {
+					if ((it.lft % 10) < (it.rgt % 10)) borrow = true;
+				}
+			}
+			return {carry: carry, borrow: borrow};
+		},
+
+		prepareRanges: function () {
 			g_mul_result = [];
 			for(var a = this.range_mul[0].min; a <= this.range_mul[0].max; a ++) {
 				for(var b = this.range_mul[1].min; b <= this.range_mul[1].max; b ++) {
@@ -1460,9 +1987,19 @@ var app = new Vue({
 					if( g_divisor.indexOf(a*b) < 0 ) g_divisor.push(a*b);
 				}
 			}
-			if (!this.isValid()) {
-				return;
+		},
+
+		doGen: function () {
+			var self = this;
+			var savedSettings = this.captureSettings();
+			var batches = [];
+			if (this.mixConfigs.length > 0) {
+				batches = this.mixConfigs.slice();
+			} else {
+				batches = [{id: 'single', label: this.buildTitleFromSettings(), count: this.count, settings: this.captureSettings()}];
 			}
+			this.res = [];
+			var pageSet = {};
 			this.report.total = 0;
 			this.report.addcnt = 0; // 加法题数量
 			this.report.subcnt = 0; // 减法题数量
@@ -1471,13 +2008,58 @@ var app = new Vue({
 			this.report.carrycnt = 0; // 进位题数量
 			this.report.borrowcnt = 0; // 借位题数量
 			this.report.exceptcnt = 0; // 异常题数量(由于冲突，未能按规则生成)
-			this.res = [];
-			for (var i = 0; i < this.count; i++) {
-				var item = {
-					li: this.genOneFormula()
-					//li: this.genItem()
-				};
-				this.res.push(item);
+
+			var generateBatch = function (cfg) {
+				self.applySettings(cfg.settings);
+				self.count = cfg.count;
+				self.prepareRanges();
+				if (!self.isValid()) {
+					return;
+				}
+				if (self.autoTitle) {
+					self.refreshTitleFromSettings();
+				}
+				for (var i = 0; i < cfg.count; i++) {
+					var attempts = 0;
+					var pushed = false;
+					while (attempts < 50) {
+						var liBase = self.genOneFormula();
+						var cbInfo = self.detectCarryBorrow(liBase);
+						if (self.carry == 'no' && cbInfo.carry) { attempts++; continue; }
+						if (self.borrow == 'no' && cbInfo.borrow) { attempts++; continue; }
+						var li = self.applyNumberFormat(JSON.parse(JSON.stringify(liBase)));
+						var key = self.formulaToString(li);
+						if (self.uniquePerPage) {
+							var pageSize = (self.pagerows - 0) * (self.cols - 0);
+							var page = Math.floor(self.res.length / pageSize);
+							if (!pageSet[page]) pageSet[page] = {};
+							if (pageSet[page][key]) { attempts++; continue; }
+							pageSet[page][key] = true;
+						}
+						self.res.push({li: li});
+						pushed = true;
+						break;
+					}
+					if (!pushed) {
+						var fallback = self.applyNumberFormat(self.genOneFormula());
+						if (self.uniquePerPage) {
+							var pageSize2 = (self.pagerows - 0) * (self.cols - 0);
+							var page2 = Math.floor(self.res.length / pageSize2);
+							var key2 = self.formulaToString(fallback);
+							if (!pageSet[page2]) pageSet[page2] = {};
+							pageSet[page2][key2] = true;
+						}
+						self.res.push({li: fallback});
+					}
+				}
+			};
+
+			for (var i = 0; i < batches.length; i++) {
+				generateBatch(batches[i]);
+			}
+			this.applySettings(savedSettings);
+			if (this.autoTitle) {
+				this.refreshTitleFromSettings();
 			}
 		},
 
@@ -1702,4 +2284,3 @@ var app = new Vue({
 
 	}
 });
-
