@@ -1560,7 +1560,7 @@ var app = new Vue({
 		},
 
 		buildFractionHTML: function (numerator, denominator) {
-			return '<span class="frac"><sup>' + numerator + '</sup><span class="slash">/</span><sub>' + denominator + '</sub></span>';
+			return '<span class="frac"><span class="numerator">' + numerator + '</span><span class="bar"></span><span class="denominator">' + denominator + '</span></span>';
 		},
 
 		activeNumberModes: function () {
