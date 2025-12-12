@@ -1747,8 +1747,6 @@ var app = new Vue({
 			this.level = val;
 			if (!val) return;
 			this.resetFormatFlags();
-			this.mixConfigs = [];
-			this.uniquePerPage = false;
 			this.rule = '1';
 			this.whichcond = '';
 			this.itemcount = 2;
