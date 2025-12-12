@@ -626,7 +626,7 @@ var _hmt = _hmt || [];
                                 <td :style="{padding:cellSpacing+'px '+cellPadding+'px'}" v-for="c in (cols-0)" >
                                     <template v-if="r > parseInt((res.length - (p - 1) * (pagerows-0) * (cols-0) + (cols - 1)) / (cols-0))">&nbsp;</template>
                                     <template v-if="(p-1) * (pagerows-0) * (cols-0) + (r-1) * (cols-0) + (c - 1) < res.length">
-                                        <span>{{formulaToString(res[ (p-1) * (pagerows-0) * (cols-0) + (r-1) * (cols-0) + (c - 1)].li) }}</span>
+                                        <span v-html="formulaToString(res[ (p-1) * (pagerows-0) * (cols-0) + (r-1) * (cols-0) + (c - 1)].li)"></span>
                                     </template>
                                 </td>
                             </tr>

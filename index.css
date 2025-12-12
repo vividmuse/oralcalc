@@ -54,3 +54,18 @@ tr.printonly {
 */
 tr.break_before { page-break-before: always; }
 tr.break_after { page-break-after: always; }
+.frac {
+    display: inline-block;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0 2px;
+}
+.frac sup, .frac sub {
+    display: block;
+    font-size: 0.8em;
+    line-height: 1.1;
+}
+.frac .slash {
+    display: block;
+    line-height: 0.9;
+}

@@ -1539,15 +1539,28 @@ var app = new Vue({
 				var whole = meta.whole || 0;
 				var numerator = meta.numerator || 0;
 				var denominator = meta.denominator || 1;
-				if (0 == numerator) {
-					return whole ? whole : 0;
+				var sign = '';
+				if (whole < 0) {
+					sign = '-';
+					whole = Math.abs(whole);
+				} else if (whole === 0 && numerator < 0) {
+					sign = '-';
+					numerator = Math.abs(numerator);
 				}
-				var prefix = whole ? (whole + ' ') : '';
-				return prefix + numerator + '/' + denominator;
+				if (0 == numerator) {
+					return (sign ? sign : '') + (whole ? whole : 0);
+				}
+				var frac = this.buildFractionHTML(numerator, denominator);
+				var prefix = whole ? (sign + whole + ' ') : sign;
+				return prefix + frac;
 			}
 			if (meta && typeof meta.text !== 'undefined') return meta.text;
 			if (meta && typeof meta.value !== 'undefined') return meta.value;
 			return meta;
+		},
+
+		buildFractionHTML: function (numerator, denominator) {
+			return '<span class="frac"><sup>' + numerator + '</sup><span class="slash">/</span><sub>' + denominator + '</sub></span>';
 		},
 
 		activeNumberModes: function () {
